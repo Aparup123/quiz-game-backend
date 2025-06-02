@@ -1,15 +1,19 @@
 import User from "../models/user.model.js";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
-import { ApiError } from "../utils/apiClasses.util.js";
+import { ApiError, ZodValidationError } from "../utils/apiClasses.util.js";
+import {signInSchema, signUpSchema} from "../utils/zodSchemas.js";
+
+
 
 const signIn=async (req, res, next)=>{
     try{
-        const { email, password } = req.body;
-        // Validate the input
-        if (!email || !password) {
-            throw new ApiError("Email and password are required",401);
+        // Validate the input using zod schema
+        const parsedData = signInSchema.safeParse(req.body);
+        if (!parsedData.success) {
+            throw new ZodValidationError(parsedData.error);
         }
+        const { email, password } = req.body;
     
         const user=await User.findOne({ email });
         if (!user) {
@@ -35,30 +39,36 @@ const signIn=async (req, res, next)=>{
 }
 
 const signUp=async (req, res)=>{
-    const { name, email, password } = req.body;
-    // Validate the input   
-    if (!name || !email || !password) {
-        return res.status(400).json({ message: "Name, email and password are required" });
+    try{
+        const parsedData = signUpSchema.safeParse(req.body);
+        if(!parsedData.success){
+            throw new ZodValidationError(parsedData.error);
+        }
+        const { name, email, password } = req.body;
+        
+        // Check if user already exists
+        const existingUser = await User.findOne({ email });
+        if (existingUser) {
+            throw new ApiError("User already exists", 409);
+        }
+        // Hash the password
+        const hashedPassword = await bcrypt.hash(password, 10);
+        // Create a new user
+        const newUser = new User({ name, email, password: hashedPassword });
+        const savedUser=await newUser.save();
+        // Generate JWT token
+        const token = jwt.sign({ id: savedUser._id }, process.env.JWT_SECRET, { expiresIn: "1h" });
+        res.cookie("token", token, {
+            httpOnly: true,
+            maxAge: 1000 * 60 * 60,
+        }); 
+        const user=savedUser.toObject();
+        delete user.password;
+        res.status(201).json({ message: "User created successfully", user: user });
+    }catch(err){
+        next(err);
     }
-    // Check if user already exists
-    const existingUser = await User.findOne({ email });
-    if (existingUser) {
-        return res.status(409).json({ message: "User already exists" });
-    }
-    // Hash the password
-    const hashedPassword = await bcrypt.hash(password, 10);
-    // Create a new user
-    const newUser = new User({ name, email, password: hashedPassword });
-    const savedUser=await newUser.save();
-    // Generate JWT token
-    const token = jwt.sign({ id: savedUser._id }, process.env.JWT_SECRET, { expiresIn: "1h" });
-    res.cookie("token", token, {
-        httpOnly: true,
-        maxAge: 1000 * 60 * 60,
-    }); 
-    const user=savedUser.toObject();
-    delete user.password;
-    res.status(201).json({ message: "User created successfully", user: user });
+    
 }
 
 const signOut=(req, res, next)=>{

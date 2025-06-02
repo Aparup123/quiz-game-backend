@@ -3,6 +3,7 @@ import mongoose from "mongoose"
 const questionSchema = new mongoose.Schema({
   question: String,
   options: [{
+    _id:false,
     number: Number,
     content: String,
     isCorrect: Boolean // Single source of truth && we don't pass it to the user
@@ -14,15 +15,8 @@ const questionSchema = new mongoose.Schema({
   },
   points: Number,
   tags: [String],
-  
   // Additional useful fields:
-  difficulty: {
-    type: String,
-    enum: ["easy", "medium", "hard"],
-    required: true
-  },
-  category: String,
-  isActive: Boolean,
+  difficulty: Number, //ranges from 1 to 10
 }, {
   timestamps: true
 })

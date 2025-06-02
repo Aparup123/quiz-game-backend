@@ -1,12 +1,11 @@
 import express from 'express';
 import mongoose from 'mongoose';
 import userRouter from './routes/user.route.js';
-import dotenv from 'dotenv';
+import 'dotenv/config';
 import errorHandler from './middlewares/errorHandler.middleware.js';
 import quizRouter from './routes/quiz.route.js';
 import cookieParser from 'cookie-parser';
 
-dotenv.config();
 
 const app=express();
 app.use(cookieParser());

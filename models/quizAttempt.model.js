@@ -7,31 +7,33 @@ const quizAttempts = new mongoose.Schema({
     ref: "QuizTemplates"
     },
   userId: {
-    type:mongoose.Schema.TypesObjectId,
-    ref: "User"
+    type:mongoose.Schema.Types.ObjectId,
+    ref: "Users"
     },
   attemptNumber: Number,
   
   // User responses
   responses: [{
-    questionId: {
-        type: mongoose.Schema.TypesObjectId, 
-        ref: "Questions"
+    order: Number, // For maintaining question sequence
+    question: {
+        type: mongoose.Schema.Types.ObjectId, 
+        ref: "Questions",
+        _id: false // Do not include _id in the question reference
     },
-    selectedOptionIds: [Number],
+    selectedOptions: [Number],
     textAnswer: String, // For text-type questions
-    answeredAt: Date,
-    timeSpent: Number
+    // answeredAt: Date,
+    // timeSpent: Number
   }],
   
   // Computed results (calculated after submission)
   results: [{
-    questionId: {
+    order: Number, // For maintaining question sequence
+    question: {
         type: mongoose.Schema.Types.ObjectId, 
         ref: "Questions"
     },
-    selectedOptionIds: [Number],
-    correctOptionIds: [Number], // Computed from Questions.options.isCorrect
+    selectedOptions: [Number],
     pointsEarned: Number,
     pointsPossible: Number,
     status: {
@@ -62,9 +64,9 @@ const quizAttempts = new mongoose.Schema({
   timeSpent: Number,
   
   // Session info
-  ipAddress: String,
-  userAgent: String,
-  sessionId: String,
+  // ipAddress: String,
+  // userAgent: String,
+  // sessionId: String,
   
 },{
   timestamps: true
