@@ -46,7 +46,7 @@ const quizAttempts = new mongoose.Schema({
   // Attempt metadata
   status: {
     type: String,
-    enum: ["in_progress", "completed", "submitted", "abandoned"],
+    enum: ["in_progress", "completed", "evaluated", "abandoned"],
     default: "in_progress"
   },
   
