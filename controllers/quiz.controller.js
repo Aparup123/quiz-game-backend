@@ -162,8 +162,6 @@ const saveResponse = async (req, res, next) => {
 }
 
 
-
-// start from here
 const evaluate = async (req, res, next) => {
     try {
         // evaluate the quiz attempt and update the results
@@ -277,6 +275,22 @@ const getResults=async(req, res, next)=>{
     });
 }
 
+const getAttempted=async (req, res, next)=>{
+    // get all the quiz attempts of the user
+    // return the quiz attempts with the quiz template details
+    // return the quiz attempt details
+    const userId = req.user.id;
+    const attempts= await QuizAttempt.find({ userId: userId  , status: {$ne:"in_progress"} }).populate("quizTemplateId");
+    if (!attempts || attempts.length === 0) {
+        return res.status(404).json({
+            message: "No quiz attempts found"
+        }); 
+    }
+    res.status(200).json({
+        message: "Quiz Attempts Fetched Successfully",
+        attempts: attempts
+    });
+}
 
 const test = async (req, res, next) => {
     try {
@@ -292,4 +306,4 @@ const test = async (req, res, next) => {
     }
 }
 
-export { quizMain, createQuiz, startAttempt, test, saveResponse, evaluate, getQuestions, getResults };
+export { quizMain, createQuiz, startAttempt, test, saveResponse, evaluate, getQuestions, getResults, getAttempted};
