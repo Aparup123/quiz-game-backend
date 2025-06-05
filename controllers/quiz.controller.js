@@ -21,7 +21,7 @@ const createQuiz = async (req, res, next) => {
         if (!parsedData.success) {
             throw new ZodValidationError(parsedData.error);
         }
-        const { topic, difficulty, numberOfQuestions, totalPoints, type } = req.body;
+        const { topic, difficulty, numberOfQuestions, totalPoints, type, duration } = req.body;
 
         const questions = await generateQuestions(difficulty, topic, numberOfQuestions, totalPoints, type);
         if (!questions || questions.length === 0) {
@@ -44,6 +44,10 @@ const createQuiz = async (req, res, next) => {
         const quizTemplate = new QuizTemplate({
             topic: topic,
             difficulty: difficulty,
+            numberOfQuestions: numberOfQuestions,
+            totalPoints: totalPoints,
+            duration:duration,
+            type: type,
             // description: "Quiz Description",
             questions: questionList,
             createdBy: req.user.id
@@ -52,9 +56,17 @@ const createQuiz = async (req, res, next) => {
         if (!quizTemplate) {
             throw new ApiError("Failed to create quiz template", 500);
         }
+        const data=quizTemplate.toObject();
+        delete data.__v
+        delete data.questions
+        delete data.updatedAt
+        delete data.createdBy
+        delete data._id
+
+
         res.status(201).json({
             message: "Quiz Created Successfully",
-            quizTemplate: quizTemplate
+            quizTemplate: data
         });
     } catch (err) {
         next(err);
@@ -292,6 +304,21 @@ const getAttempted=async (req, res, next)=>{
     });
 }
 
+const getPending=async(req, res, next)=>{
+    const userId = req.user.id;
+    const pendingQuizzes= await QuizTemplate.find({ createdBy: userId}).select("-questions -createdBy -__v -updatedAt -_id");
+    if (!pendingQuizzes || pendingQuizzes.length === 0) {
+        return res.status(404).json({
+            message: "No pending quizzes found"
+        }); 
+    }
+    res.status(200).json({
+        message: "Pending Quizzes Fetched Successfully",
+        pendingQuizzes: pendingQuizzes
+    });
+
+}
+
 const test = async (req, res, next) => {
     try {
         const userId = req.user.id;
@@ -306,4 +333,4 @@ const test = async (req, res, next) => {
     }
 }
 
-export { quizMain, createQuiz, startAttempt, test, saveResponse, evaluate, getQuestions, getResults, getAttempted};
+export { quizMain, createQuiz, startAttempt, test, saveResponse, evaluate, getQuestions, getResults, getAttempted, getPending};

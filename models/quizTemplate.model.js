@@ -6,7 +6,14 @@ const quizTemplates = new mongoose.Schema({
         topic: String,
         difficulty:Number,
         description: String,
-        
+        duration:String,
+        numberOfQuestions:Number,
+        totalPoints:Number,
+        type: {
+            type: String,
+            enum: ["mcq", "msq", "boolean", "misc"],
+            default: "mcq" // Default type is multiple choice questions
+        },
         // Question references with order
         questions: [{
           question: {

@@ -14,6 +14,7 @@ const signUpSchema=z.object({
 const createQuizSchema = z.object({
     topic: z.string().min(1, "Topic is required").describe("The topic of the quiz"),
     difficulty: z.number().min(0, "difficulty should be between 0 and 10").max(10, "difficulty should be between 0 and 10").describe("The difficulty level of the quiz"),
+    duration: z.string().min(1, "Duration is required").describe("The duration of the quiz in hrs:mins format"),
     numberOfQuestions: z.number().min(1, "Number of questions should be at least 1").describe("The number of questions in the quiz"),
     totalPoints: z.number().min(1, "Total points should be at least 1").describe("The total points for the quiz"),
     type: z.enum(["mcq", "msq", "boolean", "misc"]).describe("The type of the questions in the quiz"),
