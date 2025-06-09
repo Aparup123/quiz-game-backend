@@ -24,6 +24,7 @@ const quizTemplates = new mongoose.Schema({
           points: Number, // Allow per-quiz point overrides
           _id: false // Disable auto-generated _id for this subdocument
         }],
+        pending: Boolean, // Indicates if the quiz is pending or completed
         
         // // Quiz Configuration
         // settings: {

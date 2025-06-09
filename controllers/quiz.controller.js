@@ -5,7 +5,7 @@ import { ApiError, ZodValidationError } from "../utils/apiClasses.util.js";
 import QuizAttempt from "../models/quizAttempt.model.js";
 import { createQuizSchema, getQuestionsSchema, saveResponseSchema, startAttemptSchema } from "../utils/zodSchemas.js";
 import { isSetEqual } from "../utils/helper.js";
-import mongoose from "mongoose";
+import mongoose, { get } from "mongoose";
 
 const quizMain = (req, res, next) => {
     res.send("Quiz Route");
@@ -51,7 +51,8 @@ const createQuiz = async (req, res, next) => {
             type: type,
             // description: "Quiz Description",
             questions: questionList,
-            createdBy: req.user.id
+            createdBy: req.user.id,
+            pending:true
         })
         await quizTemplate.save();
         if (!quizTemplate) {
@@ -74,6 +75,21 @@ const createQuiz = async (req, res, next) => {
     }
 }
 
+const queryQuestions=async(quizTemplateId)=>{
+    const quiz = await QuizTemplate.findById(quizTemplateId).populate("questions.question");
+    if (!quiz) {
+        throw new ApiError("Quiz Template Not Found", 404);
+    }
+    const questions = quiz.questions.map(q => {
+        const secureOptions = q.question.options.map((opt) => {
+            return { number: opt.number, content: opt.content };
+        })
+        console.log(secureOptions);
+        q.question.options = secureOptions;
+        return q;
+    });
+    return questions;
+}
 
 const startAttempt = async (req, res, next) => {
     try {
@@ -99,14 +115,19 @@ const startAttempt = async (req, res, next) => {
             attemptNumber: prevAttempts + 1,
         })
         await quizAttempt.save();
+        await QuizTemplate.findByIdAndUpdate(quizTemplateId, {pending: false} );
+        const questions=await queryQuestions(quizTemplateId)
         res.status(201).json({
             message: "Quiz Attempt Started Successfully",
-            quizAttempt: quizAttempt
+            quizAttempt: quizAttempt,
+            questions: questions
         });
     } catch (err) {
         next(err);
     }
 }
+
+
 
 const getQuestions = async (req, res, next) => {
     try {
@@ -350,7 +371,7 @@ const getAttempted = async (req, res, next) => {
 
 const getPending = async (req, res, next) => {
     const userId = req.user.id;
-    const pendingQuizzes = await QuizTemplate.find({ createdBy: userId }).select("-questions -createdBy -__v -updatedAt -_id");
+    const pendingQuizzes = await QuizTemplate.find({ createdBy: userId, pending:true}).select("-questions -createdBy -__v -updatedAt ");
     if (!pendingQuizzes || pendingQuizzes.length === 0) {
         return res.status(404).json({
             message: "No pending quizzes found"
