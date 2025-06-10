@@ -3,7 +3,7 @@ import QuizTemplate from "../models/quizTemplate.model.js";
 import { generateQuestions } from "../llm/llm.js";
 import { ApiError, ZodValidationError } from "../utils/apiClasses.util.js";
 import QuizAttempt from "../models/quizAttempt.model.js";
-import { createQuizSchema, getQuestionsSchema, saveResponseSchema, startAttemptSchema } from "../utils/zodSchemas.js";
+import { createQuizSchema, evaluateAttemptSchema, getAttemptsSchema, getQuestionsSchema, saveResponseSchema, startAttemptSchema } from "../utils/zodSchemas.js";
 import { isSetEqual } from "../utils/helper.js";
 import mongoose, { get } from "mongoose";
 
@@ -52,7 +52,7 @@ const createQuiz = async (req, res, next) => {
             // description: "Quiz Description",
             questions: questionList,
             createdBy: req.user.id,
-            pending:true
+            pending: true
         })
         await quizTemplate.save();
         if (!quizTemplate) {
@@ -75,7 +75,7 @@ const createQuiz = async (req, res, next) => {
     }
 }
 
-const queryQuestions=async(quizTemplateId)=>{
+const queryQuestions = async (quizTemplateId) => {
     const quiz = await QuizTemplate.findById(quizTemplateId).populate("questions.question");
     if (!quiz) {
         throw new ApiError("Quiz Template Not Found", 404);
@@ -115,8 +115,8 @@ const startAttempt = async (req, res, next) => {
             attemptNumber: prevAttempts + 1,
         })
         await quizAttempt.save();
-        await QuizTemplate.findByIdAndUpdate(quizTemplateId, {pending: false} );
-        const questions=await queryQuestions(quizTemplateId)
+        await QuizTemplate.findByIdAndUpdate(quizTemplateId, { pending: false });
+        const questions = await queryQuestions(quizTemplateId)
         res.status(201).json({
             message: "Quiz Attempt Started Successfully",
             quizAttempt: quizAttempt,
@@ -195,6 +195,30 @@ const saveResponse = async (req, res, next) => {
     }
 }
 
+const getAttempts = async (req, res, next) => {
+    // get all the quiz attempts of the user
+    try {
+        const parsedData = getAttemptsSchema.safeParse(req.params);
+        console.log(req.params)
+        if (!parsedData.success) {
+            throw new ZodValidationError(parsedData.error);
+        }
+        const { quizTemplateId } = req.params;
+        const userId = req.user.id;
+        const attempts = await QuizAttempt.find({ quizTemplateId: quizTemplateId, userId: userId }).populate("quizTemplateId");
+        if (!attempts || attempts.length === 0) {
+            return res.status(404).json({
+                message: "No quiz attempts found"
+            });
+        }
+        res.status(200).json({
+            message: "Quiz Attempts Fetched Successfully",
+            attempts: attempts
+        });
+    } catch (err) {
+        next(err);
+    }
+}
 
 const evaluate = async (req, res, next) => {
     try {
@@ -202,7 +226,11 @@ const evaluate = async (req, res, next) => {
         // calculate the score, percentage, and status of each question
         // update the quiz attempt document with the results
         // return the results to the user
-        const { quizAttemptId } = req.body;
+        const parsedData= evaluateAttemptSchema.safeParse(req.params);
+        if (!parsedData.success) {
+            throw new ZodValidationError(parsedData.error);
+        }
+        const { quizAttemptId } = req.params;
         const attemptData = await QuizAttempt.findById(quizAttemptId).populate("score");
 
         const attempt = attemptData.toObject();
@@ -279,21 +307,19 @@ const evaluate = async (req, res, next) => {
         attempt.results = results;
         console.log(results);
         const score = {
-            obtained: obtainedPoints,
+            obtained: Math.round(obtainedPoints*100)/100,
             total: totalPoints,
-            percentage: (totalPoints / totalPoints) * 100
+            percentage: Math.round((obtainedPoints / totalPoints) * 100 * 100) / 100,
         }
         attempt.score = score;
         attempt.status = "evaluated";
+        console.log("attempt:", attempt);
+
         await QuizAttempt.findByIdAndUpdate(quizAttemptId, attempt);
+        // console.log(updatedAttempt)
         res.status(200).json({
             message: "Quiz Attempt Evaluated Successfully",
-            results: results,
-            score: {
-                obtained: obtainedPoints,
-                total: totalPoints,
-                percentage: (obtainedPoints / totalPoints) * 100
-            }
+            attempt: attempt,
         });
     } catch (err) {
         next(err);
@@ -317,34 +343,34 @@ const getAttempted = async (req, res, next) => {
         const userId = req.user.id;
         const attempts = await QuizAttempt.aggregate([
             {
-              $match: {
-                userId: new mongoose.Types.ObjectId(userId),
-                status:{$ne: "in_progress"}
-              }
+                $match: {
+                    userId: new mongoose.Types.ObjectId(userId),
+                    status: { $ne: "in_progress" }
+                }
             },
             {
-              $lookup: {
-                from: "quiztemplates",             // Name of the QuizTemplate collection in MongoDB
-                localField: "quizTemplateId",      // Field in QuizAttempt
-                foreignField: "_id",               // Field in QuizTemplate
-                as: "quizTemplate"
-              }
+                $lookup: {
+                    from: "quiztemplates",             // Name of the QuizTemplate collection in MongoDB
+                    localField: "quizTemplateId",      // Field in QuizAttempt
+                    foreignField: "_id",               // Field in QuizTemplate
+                    as: "quizTemplate"
+                }
             },
             {
-              $unwind: "$quizTemplate" // Optional if you want quizTemplate as an object instead of array
+                $unwind: "$quizTemplate" // Optional if you want quizTemplate as an object instead of array
             },
             {
-              $group: {
-                _id: "$quizTemplateId",                 // Group by quizTemplateId
-                numberOfAttempts: { $sum: 1 },          // Count of attempts
-                quizTemplate: { $first: "$quizTemplate" }, // Take one template per group
-                // attempts: { $push: "$$ROOT" }           // Optional: push all attempts in the group
-              }
+                $group: {
+                    _id: "$quizTemplateId",                 // Group by quizTemplateId
+                    numberOfAttempts: { $sum: 1 },          // Count of attempts
+                    quizTemplate: { $first: "$quizTemplate" }, // Take one template per group
+                    // attempts: { $push: "$$ROOT" }           // Optional: push all attempts in the group
+                }
             },
             {
                 $project: {
-                    _id:1,
-                    numberOfAttempts: 1,
+                    "_id": 1,
+                    "numberOfAttempts": 1,
                     "quizTemplate.topic": 1, // Include the quiz template details
                     "quizTemplate.difficulty": 1,
                     "quizTemplate.numberOfQuestions": 1,
@@ -352,9 +378,9 @@ const getAttempted = async (req, res, next) => {
                     "quizTemplate.type": 1,
                 }
             }
-          ]);
-     
-         
+        ]);
+
+
         if (!attempts || attempts.length === 0) {
             return res.status(404).json({
                 message: "No quiz attempts found"
@@ -371,7 +397,7 @@ const getAttempted = async (req, res, next) => {
 
 const getPending = async (req, res, next) => {
     const userId = req.user.id;
-    const pendingQuizzes = await QuizTemplate.find({ createdBy: userId, pending:true}).select("-questions -createdBy -__v -updatedAt ");
+    const pendingQuizzes = await QuizTemplate.find({ createdBy: userId, pending: true }).select("-questions -createdBy -__v -updatedAt ");
     if (!pendingQuizzes || pendingQuizzes.length === 0) {
         return res.status(404).json({
             message: "No pending quizzes found"
@@ -389,33 +415,33 @@ const test = async (req, res, next) => {
         const userId = req.user.id;
         const attempts = await QuizAttempt.aggregate([
             {
-              $match: {
-                userId: new mongoose.Types.ObjectId(userId),
-                status:{$ne: "in_progress"}
-              }
+                $match: {
+                    userId: new mongoose.Types.ObjectId(userId),
+                    status: { $ne: "in_progress" }
+                }
             },
             {
-              $lookup: {
-                from: "quiztemplates",             // Name of the QuizTemplate collection in MongoDB
-                localField: "quizTemplateId",      // Field in QuizAttempt
-                foreignField: "_id",               // Field in QuizTemplate
-                as: "quizTemplate"
-              }
+                $lookup: {
+                    from: "quiztemplates",             // Name of the QuizTemplate collection in MongoDB
+                    localField: "quizTemplateId",      // Field in QuizAttempt
+                    foreignField: "_id",               // Field in QuizTemplate
+                    as: "quizTemplate"
+                }
             },
             {
-              $unwind: "$quizTemplate" // Optional if you want quizTemplate as an object instead of array
+                $unwind: "$quizTemplate" // Optional if you want quizTemplate as an object instead of array
             },
             {
-              $group: {
-                _id: "$quizTemplateId",                 // Group by quizTemplateId
-                numberOfAttempts: { $sum: 1 },          // Count of attempts
-                quizTemplate: { $first: "$quizTemplate" }, // Take one template per group
-                // attempts: { $push: "$$ROOT" }           // Optional: push all attempts in the group
-              }
+                $group: {
+                    _id: "$quizTemplateId",                 // Group by quizTemplateId
+                    numberOfAttempts: { $sum: 1 },          // Count of attempts
+                    quizTemplate: { $first: "$quizTemplate" }, // Take one template per group
+                    // attempts: { $push: "$$ROOT" }           // Optional: push all attempts in the group
+                }
             },
             {
                 $project: {
-                    _id:1,
+                    _id: 1,
                     numberOfAttempts: 1,
                     "quizTemplate.topic": 1, // Include the quiz template details
                     "quizTemplate.difficulty": 1,
@@ -424,9 +450,9 @@ const test = async (req, res, next) => {
                     "quizTemplate.type": 1,
                 }
             }
-          ]);
-     
-         
+        ]);
+
+
         if (!attempts || attempts.length === 0) {
             return res.status(404).json({
                 message: "No quiz attempts found"
@@ -441,4 +467,16 @@ const test = async (req, res, next) => {
     }
 }
 
-export { quizMain, createQuiz, startAttempt, test, saveResponse, evaluate, getQuestions, getResults, getAttempted, getPending };
+export {
+    quizMain,
+    createQuiz,
+    startAttempt,
+    test,
+    saveResponse,
+    evaluate,
+    getQuestions,
+    getResults,
+    getAttempted,
+    getPending,
+    getAttempts
+};
