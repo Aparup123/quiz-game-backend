@@ -245,6 +245,8 @@ const evaluate = async (req, res, next) => {
         }
         console.log(attempt);
         const quizTemplate = await QuizTemplate.findById(attempt.quizTemplateId);
+        const totalQuestions = quizTemplate.numberOfQuestions;
+
         const responses = attempt.responses;
         const questions = quizTemplate.questions;
         if (!quizTemplate) {
@@ -255,6 +257,7 @@ const evaluate = async (req, res, next) => {
         // }
         let totalPoints = 0;
         let obtainedPoints = 0;
+        let correctQuestions = 0;
         const results = [];
         for (let q of questions) {
             const response = responses.find((r) => r.order === q.order);
@@ -288,6 +291,7 @@ const evaluate = async (req, res, next) => {
                     }
                 }
                 const pointsEarned = isCorrect ? q.points : 0;
+                correctQuestions+= isCorrect ? 1 : 0;
                 obtainedPoints += pointsEarned;
                 res = {
                     order: q.order,
@@ -307,6 +311,8 @@ const evaluate = async (req, res, next) => {
         attempt.results = results;
         console.log(results);
         const score = {
+            correctQuestions: correctQuestions,
+            totalQuestions: totalQuestions,
             obtained: Math.round(obtainedPoints*100)/100,
             total: totalPoints,
             percentage: Math.round((obtainedPoints / totalPoints) * 100 * 100) / 100,

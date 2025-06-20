@@ -52,6 +52,8 @@ const quizAttempts = new mongoose.Schema({
   
   // Scoring
   score: {
+    correctQuestions: Number,
+    totalQuestions: Number,
     obtained: Number,
     total: Number,
     percentage: Number,
