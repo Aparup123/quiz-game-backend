@@ -382,6 +382,7 @@ const getAttempted = async (req, res, next) => {
                     "quizTemplate.numberOfQuestions": 1,
                     "quizTemplate.totalPoints": 1,
                     "quizTemplate.type": 1,
+                    "quizTemplate.duration": 1,
                 }
             }
         ]);
