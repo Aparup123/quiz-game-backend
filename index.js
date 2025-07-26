@@ -6,6 +6,7 @@ import errorHandler from './middlewares/errorHandler.middleware.js';
 import quizRouter from './routes/quiz.route.js';
 import cookieParser from 'cookie-parser';
 import cors from 'cors';
+import authRouter from './routes/auth.route.js';
 
 const app=express();
 
@@ -17,6 +18,7 @@ app.use(cors({
 app.use(cookieParser());
 app.use(express.json());
 app.use("/users", userRouter);
+app.use("/auth", authRouter);
 app.use("/quiz", quizRouter);
 
 app.get("/", (req, res) => {
